@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# API key (git-ignored, create from api-key.example.ts)
+lib/ai/api-key.ts
+
 # vercel
 .vercel
 
