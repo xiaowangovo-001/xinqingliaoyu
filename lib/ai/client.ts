@@ -42,7 +42,7 @@ export class AIClient {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-pro',
           messages,
           stream: true,
           temperature: 0.8,
@@ -110,7 +110,7 @@ export class AIClient {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-pro',
         messages,
         stream: false,
         temperature: options?.temperature ?? 0.3,
