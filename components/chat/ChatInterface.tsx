@@ -17,9 +17,19 @@ export function ChatInterface() {
   const isStreaming = useChatStore((s) => s.isStreaming);
   const streamBuffer = useChatStore((s) => s.streamBuffer);
   const setWisemanType = useChatStore((s) => s.setWisemanType);
+  const restoreLastSession = useChatStore((s) => s.restoreLastSession);
   const { sendMessage } = useChat();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-restore last session on mount if no messages loaded
+  const didRestore = useRef(false);
+  useEffect(() => {
+    if (!didRestore.current && messages.length === 0) {
+      didRestore.current = true;
+      restoreLastSession();
+    }
+  }, [messages.length, restoreLastSession]);
 
   // Auto-scroll to bottom
   useEffect(() => {

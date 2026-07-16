@@ -10,16 +10,48 @@ function getUser() {
   try { const r = localStorage.getItem('zhixin_user'); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 
+function saveConversationMeta(convId: string, wisemanType: WisemanType, title: string, messageCount: number) {
+  try {
+    const convs = JSON.parse(localStorage.getItem('zhixin_conversations') || '[]');
+    // Update existing or add new
+    const existing = convs.findIndex((c: { id: string }) => c.id === convId);
+    const entry = {
+      id: convId,
+      wiseman_type: wisemanType,
+      title: title.slice(0, 50),
+      updated_at: new Date().toISOString(),
+      messageCount,
+    };
+    if (existing >= 0) {
+      convs[existing] = entry;
+    } else {
+      convs.unshift(entry);
+    }
+    // Keep last 200 conversations
+    localStorage.setItem('zhixin_conversations', JSON.stringify(convs.slice(0, 200)));
+    // Notify sidebar to refresh
+    window.dispatchEvent(new Event('zhixin:conv-updated'));
+  } catch { /* ignore */ }
+}
+
 export function useChat() {
   const store = useChatStore();
 
   const sendMessage = useCallback(async (content: string, wisemanType: WisemanType) => {
     const user = getUser();
+    const convId = store.conversationId || crypto.randomUUID();
     const userMsgId = crypto.randomUUID();
+
     store.addMessage({
-      id: userMsgId, conversationId: store.conversationId || '',
+      id: userMsgId, conversationId: convId,
       role: 'user', content, createdAt: new Date().toISOString(),
     });
+
+    // If this is a new conversation, set its ID now
+    if (!store.conversationId) {
+      store.setConversationId(convId);
+    }
+
     store.startStreaming();
 
     // Build messages for AI
@@ -34,15 +66,15 @@ export function useChat() {
         store.appendStreamChunk(chunk);
       },
       onDone(fullResponse: string) {
-        // Save conversation to localStorage
-        const convId = store.conversationId || crypto.randomUUID();
-        try {
-          const convs = JSON.parse(localStorage.getItem('zhixin_conversations') || '[]');
-          convs.unshift({ id: convId, wiseman_type: wisemanType, title: content.slice(0, 20), updated_at: new Date().toISOString() });
-          localStorage.setItem('zhixin_conversations', JSON.stringify(convs.slice(0, 50)));
+        const msgId = crypto.randomUUID();
 
-          // Track mood
-          if (user) {
+        // Save conversation metadata to localStorage
+        const msgCount = store.messages.length + 1; // +1 for the assistant message about to be added
+        saveConversationMeta(convId, wisemanType, content, msgCount);
+
+        // Track mood
+        if (user) {
+          try {
             const moods = JSON.parse(localStorage.getItem('zhixin_moods') || '[]');
             const today = new Date().toISOString().split('T')[0];
             moods.push({ id: crypto.randomUUID(), user_id: user.id, date: today, mood_score: 6, emotion_tags: [wisemanType] });
@@ -54,15 +86,15 @@ export function useChat() {
               milestones.push({ id: crypto.randomUUID(), user_id: user.id, title: '第一次对话', description: '你迈出了自我探索的第一步', milestone_type: 'first_chat', date: today });
               localStorage.setItem('zhixin_milestones', JSON.stringify(milestones));
             }
-          }
-        } catch {}
+          } catch { /* ignore */ }
+        }
 
-        store.finalizeStream(crypto.randomUUID(), convId);
+        store.finalizeStream(msgId, convId);
       },
       onError(err: Error) {
         console.error('DeepSeek error:', err);
         store.appendStreamChunk('\n\n[抱歉，回复生成失败了。请稍后再试。]');
-        store.finalizeStream(crypto.randomUUID());
+        store.finalizeStream(crypto.randomUUID(), convId);
       },
     });
   }, [store]);
